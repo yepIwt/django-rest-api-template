@@ -3,10 +3,11 @@ from django.http import HttpResponse
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions
+from rest_framework.exceptions import AuthenticationFailed, ValidationError
 from . import serializers
 import datetime
 import jwt
-
+from api.models import User
 
 def welcome(request):
     return HttpResponse("<h1>Welcome's Page!</h1>")
@@ -45,3 +46,26 @@ class LoginView(APIView):
 		}
         
         return response
+
+
+class GetUser(APIView):
+    def get(self, request):
+
+        token = request.COOKIES.get("jwt")
+
+        if not token:
+            raise AuthenticationFailed('Unauthenticated!')
+        
+        try:
+            payload = jwt.decode(token, "secret", algorithms=["HS256"])
+        except jwt.ExpiredSignatureError:
+            raise AuthenticationFailed('Unauthenticated!')
+        
+        if not request.data.get("id"):
+            request.data.update({"id": payload['id']})
+        
+        user = User.objects.filter(id=request.data["id"]).first()
+        if not user:
+            return Response({})
+        serializer = serializers.UserSerializer(user)
+        return Response(serializer.data)
